@@ -1,0 +1,3 @@
+#!/bin/bash
+
+echo "DJO is now open" | nc 127.0.0.1 31337

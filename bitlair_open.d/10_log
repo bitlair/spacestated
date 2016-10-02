@@ -1,0 +1,3 @@
+#!/bin/bash
+
+echo "Space opened on $(date)" >> /var/log/spacestate.log

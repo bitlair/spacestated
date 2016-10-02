@@ -38,7 +38,9 @@ def set_bit(name, bit):
 
 
 def alarm_disarmed():
-    return mqtt_get('bitlair/alarm', 'armed').split(' ')[0] == 'disarmed'
+    with open('/tmp/alarmdisarmed', 'r') as f:
+        return f.read() == '1'
+#    return mqtt_get('bitlair/alarm', 'armed').split(' ')[0] == 'disarmed'
 
 def in_djo_time():
     times = [

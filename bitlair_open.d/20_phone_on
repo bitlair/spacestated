@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Switches on the phones.
+poe-switch 1 1
+sleep 1
+poe-switch 2 1
+sleep 1

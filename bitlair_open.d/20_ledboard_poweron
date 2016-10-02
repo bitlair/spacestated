@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Switches on the led-board.
+
+apc-switch 23 on
+sleep 1

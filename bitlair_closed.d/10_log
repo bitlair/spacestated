@@ -1,0 +1,3 @@
+#!/bin/bash
+
+echo "Space closed on $(date)" >> /var/log/spacestate.log

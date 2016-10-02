@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Switches off the led-board.
+ssh root@bitpanel.bitlair.nl shutdown -h now
+sleep 5
+apc-switch 23 off
+sleep 1

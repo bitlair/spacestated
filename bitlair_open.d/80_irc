@@ -1,0 +1,3 @@
+#!/bin/bash
+
+irc-say "Bitlair is now open!"
