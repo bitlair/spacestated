@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+
+import os
+import os.path as path
+import subprocess
+import time
+
+
+MQTT_HOST = 'mqtt.bitlair.nl'
+HOOK_DIR  = path.dirname(__file__)
+RUN_DIR   = '/tmp/spacestate'
+
+
+def run_parts(dir, args=[]):
+    cmd = ['run-parts', dir]
+    cmd.extend([ '--arg=%s' % arg for arg in args ])
+    return subprocess.check_output(cmd)
+
+def mqtt_get(topic, default=''):
+    try:
+        cmd = ['mqtt-simple', '--one', '-h', MQTT_HOST, '-s', topic]
+        return subprocess.check_output(cmd, timeout=2)[:-1].decode('utf8')
+    except subprocess.TimeoutExpired:
+        print('Topic %s is not retained' % topic)
+        return default
+
+def read_bit(name, default):
+    try:
+        with open(path.join(RUN_DIR, name), 'r') as f:
+            return f.read() == '1'
+    except Exception as err:
+        print(err)
+        return default
+
+def set_bit(name, bit):
+    with open(path.join(RUN_DIR, name), 'w') as f:
+        return f.write('1' if bit else '0')
+
+
+def alarm_disarmed():
+    return mqtt_get('bitlair/alarm', 'armed').split(' ')[0] == 'disarmed'
+
+def in_djo_time():
+    times = [
+        # (weekday, openhour, closehour)
+        (4, 19, 22),
+        (5, 9,  14),
+    ]
+    import datetime
+    now = datetime.datetime.today()
+    for day in times:
+        if now.weekday() == day[0] and day[1] <= now.hour < day[2]:
+            return True
+    return False
+
+
+def getstate_djo():
+    try:
+        import urllib.request
+        opened = urllib.request.urlopen('https://settings.djoamersfoort.nl/system/music').read() == '1'
+#        return opened and in_djo_time() and alarm_disarmed()
+        return False
+    except Exception as err:
+        print(err)
+        return False
+
+def getstate_bitlair():
+    try:
+        spacenet  = int(mqtt_get('bitlair/wifi/spacenet/online', '0'))
+        bitlair2g = int(mqtt_get('bitlair/wifi/bitlair-2ghz/online', '0'))
+        bitlair5g = int(mqtt_get('bitlair/wifi/bitlair-5ghz/online', '0'))
+        return spacenet + bitlair2g + bitlair5g > 0 and alarm_disarmed() and not in_djo_time()
+    except Exception as err:
+        print(err)
+        return False
+
+
+if __name__ == '__main__':
+    os.makedirs(RUN_DIR, exist_ok=True)
+
+    state_bitlair = read_bit('state_bitlair', getstate_bitlair())
+    state_djo     = read_bit('state_djo', getstate_djo())
+    print('Initial state: Bitlair: %s, DJO: %s' % (state_bitlair, state_djo))
+
+    while True:
+        try:
+            if state_bitlair != getstate_bitlair():
+                state_bitlair = getstate_bitlair()
+                set_bit('state_bitlair', state_bitlair)
+                print('Bitlair Open: %s' % state_bitlair)
+                if state_bitlair:
+                    print('Powering up Bitlair...')
+                    run_parts(path.join(HOOK_DIR, 'bitlair_open.d'))
+                    print('Powerup complete')
+                else:
+                    print('Powering down Bitlair...')
+                    run_parts(path.join(HOOK_DIR, 'bitlair_closed.d'))
+                    print('Powerdown complete')
+
+            if state_djo != getstate_djo():
+                state_djo = getstate_djo()
+                set_bit('state_djo', state_djo)
+                print('DJO Open: %s' % state_djo)
+                if state_djo:
+                    print('Powering up DJO...')
+                    run_parts(path.join(HOOK_DIR, 'djo_open.d'))
+                    print('Powerup complete')
+                else:
+                    print('Powering down DJO...')
+                    run_parts(path.join(HOOK_DIR, 'djo_closed.d'))
+                    print('Powerdown complete')
+        except Exception as err:
+            print(err)
+
+        time.sleep(1)
