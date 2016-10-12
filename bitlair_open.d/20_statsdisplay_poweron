@@ -3,6 +3,6 @@
 # Starts the computer displaying pretty graphs.
 
 for i in {0..3}; do
-    wakeonlan '00:1e:c9:72:21:c4'
+    wakeonlan '00:1e:c9:72:21:c4' > /dev/null
     sleep 1
 done

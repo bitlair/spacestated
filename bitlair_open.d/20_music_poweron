@@ -2,10 +2,8 @@
 
 # Switches on the music computer.
 apc-switch 13 off
-sleep 5
+sleep 10
 apc-switch 13 on
-sleep 1
 
 # Amplifier and KVM switch
 apc-switch 20 on
-sleep 1
