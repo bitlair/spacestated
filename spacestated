@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import hashlib
 import os
 import os.path as path
 import subprocess
@@ -11,107 +12,95 @@ HOOK_DIR  = path.dirname(__file__)
 RUN_DIR   = '/tmp/spacestate'
 
 
-def run_parts(dir, args=[]):
-    cmd = ['run-parts', dir]
-    cmd.extend([ '--arg=%s' % arg for arg in args ])
-    return subprocess.check_output(cmd)
-
-def mqtt_get(topic, default=''):
+def mqtt_get(topic, retry=3):
     try:
         cmd = ['mqtt-simple', '--one', '-h', MQTT_HOST, '-s', topic]
-        return subprocess.check_output(cmd, timeout=2)[:-1].decode('utf8')
+        return subprocess.check_output(cmd, timeout=1)[:-1].decode('utf8')
     except subprocess.TimeoutExpired:
-        print('Topic %s is not retained' % topic)
-        return default
+        # Sometimes MQTT is derp. Try again just in case the message is retained.
+        if retry > 0:
+            return mqtt_get(topic, retry - 1)
+        raise Exception('Topic %s is not retained' % topic)
 
-def read_bit(name, default):
-    try:
-        with open(path.join(RUN_DIR, name), 'r') as f:
-            return f.read() == '1'
-    except Exception as err:
-        print(err)
-        return default
-
-def set_bit(name, bit):
-    with open(path.join(RUN_DIR, name), 'w') as f:
-        return f.write('1' if bit else '0')
-
+def hash_file(f):
+    with open(f, 'rb') as f:
+        digest = hashlib.sha1()
+        while True:
+            buf = f.read(4096)
+            if not buf:
+                break
+            digest.update(buf)
+        return digest.hexdigest()
 
 def alarm_disarmed():
-    with open('/tmp/alarmdisarmed', 'r') as f:
-        return f.read() == '1'
-#    return mqtt_get('bitlair/alarm', 'armed').split(' ')[0] == 'disarmed'
-
-def in_djo_time():
-    times = [
-        # (weekday, openhour, closehour)
-        (4, 19, 22),
-        (5, 9,  14),
-    ]
-    import datetime
-    now = datetime.datetime.today()
-    for day in times:
-        if now.weekday() == day[0] and day[1] <= now.hour < day[2]:
-            return True
-    return False
-
+    return mqtt_get('bitlair/alarm').split(' ')[0] == 'disarmed'
 
 def getstate_djo():
-    try:
-        import urllib.request
-        opened = urllib.request.urlopen('https://settings.djoamersfoort.nl/system/music').read() == '1'
-#        return opened and in_djo_time() and alarm_disarmed()
-        return False
-    except Exception as err:
-        print(err)
-        return False
+    return mqtt_get('bitlair/switch/state') == 'djo' and alarm_disarmed()
 
 def getstate_bitlair():
-    try:
-        spacenet  = int(mqtt_get('bitlair/wifi/spacenet/online', '0'))
-        bitlair2g = int(mqtt_get('bitlair/wifi/bitlair-2ghz/online', '0'))
-        bitlair5g = int(mqtt_get('bitlair/wifi/bitlair-5ghz/online', '0'))
-        return spacenet + bitlair2g + bitlair5g > 0 and alarm_disarmed() and not in_djo_time()
-    except Exception as err:
-        print(err)
-        return False
+    return mqtt_get('bitlair/switch/state') == 'bitlair' and alarm_disarmed()
 
+def get_state():
+    return {
+        'bitlair': getstate_bitlair(),
+        'djo':     getstate_djo(),
+    }
+
+def await_state_change(prev_state):
+    # FIXME: Changing the state using a switch while the space is cycling will be ignored.
+    # FIXME: If the alarm is closed while the space is being opened, the state will stay open.
+
+    # Receive 3 messages from MQTT. The first two messages are retained.
+    # The last one will be acted upon.
+    # This is not the cleanest solution...
+    while True:
+        cmd = ['mqtt-simple', '--count', '3', '-h', MQTT_HOST, '-s', 'bitlair/switch/state', '-s', 'bitlair/alarm']
+        subprocess.check_output(cmd)[:-1].decode('utf8')
+        state = get_state()
+        if state != prev_state:
+            return state
 
 if __name__ == '__main__':
-    os.makedirs(RUN_DIR, exist_ok=True)
-
-    state_bitlair = read_bit('state_bitlair', getstate_bitlair())
-    state_djo     = read_bit('state_djo', getstate_djo())
-    print('Initial state: Bitlair: %s, DJO: %s' % (state_bitlair, state_djo))
-
+    prev_state = get_state()
     while True:
-        try:
-            if state_bitlair != getstate_bitlair():
-                state_bitlair = getstate_bitlair()
-                set_bit('state_bitlair', state_bitlair)
-                print('Bitlair Open: %s' % state_bitlair)
-                if state_bitlair:
-                    print('Powering up Bitlair...')
-                    run_parts(path.join(HOOK_DIR, 'bitlair_open.d'))
-                    print('Powerup complete')
-                else:
-                    print('Powering down Bitlair...')
-                    run_parts(path.join(HOOK_DIR, 'bitlair_closed.d'))
-                    print('Powerdown complete')
+        state = await_state_change(prev_state)
 
-            if state_djo != getstate_djo():
-                state_djo = getstate_djo()
-                set_bit('state_djo', state_djo)
-                print('DJO Open: %s' % state_djo)
-                if state_djo:
-                    print('Powering up DJO...')
-                    run_parts(path.join(HOOK_DIR, 'djo_open.d'))
-                    print('Powerup complete')
-                else:
-                    print('Powering down DJO...')
-                    run_parts(path.join(HOOK_DIR, 'djo_closed.d'))
-                    print('Powerdown complete')
+        print('state: %s' % ', '.join([ '%s=%s' % (name, 'open' if op else 'closed') for name, op in state.items() ]))
+        try:
+            scripts = []
+            scripts_inverse = []
+
+            # Build a list of scripts that should be run.
+            for name, active in state.items():
+                if active != prev_state[name]:
+                    # Add the scripts that should run.
+                    hook_dir = path.join(HOOK_DIR, '%s_%s.d' % (name, 'open' if active else 'closed'))
+                    scripts.extend([ path.join(hook_dir, f) for f in os.listdir(hook_dir) ])
+
+                    # Add the scripts that should run if the state is the
+                    # opposite. This will help us to determine whether we will
+                    # be running scripts in needless succession.
+                    inv_dir = path.join(HOOK_DIR, '%s_%s.d' % (name, 'open' if not active else 'closed'))
+                    scripts_inverse.extend([ path.join(inv_dir, f) for f in os.listdir(inv_dir) ])
+
+            # Alias scripts to their contents though a hash of each of their contents.
+            hashes         = { hash_file(f): f for f in scripts }
+            hashes_inverse = { hash_file(f): f for f in scripts_inverse }
+
+            run = [ hashes[h] for h in set(hashes.keys()) - set(hashes_inverse.keys()) ]
+            run.sort()
+
+            for script in run:
+                try:
+                    if os.access(script, os.X_OK):
+                        out = subprocess.check_output([ script ])[:-1].decode('utf8')
+                        print(out)
+                except Exception as err:
+                    print(err)
+
         except Exception as err:
             print(err)
+            time.sleep(1)
 
-        time.sleep(1)
+        prev_state = state
