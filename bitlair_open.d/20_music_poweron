@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# Switches on the music computer.
 apc-switch 13 off
-sleep 10
+# Switches on the music computer.
 apc-switch 13 on
 
 # Amplifier and KVM switch
