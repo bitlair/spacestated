@@ -48,18 +48,15 @@ def get_state():
     }
 
 def await_state_change(prev_state):
-    # FIXME: Changing the state using a switch while the space is cycling will be ignored.
-    # FIXME: If the alarm is closed while the space is being opened, the state will stay open.
-
-    # Receive 3 messages from MQTT. The first two messages are retained.
-    # The last one will be acted upon.
-    # This is not the cleanest solution...
+    state = None
     while True:
-        cmd = ['mqtt-simple', '--count', '3', '-h', MQTT_HOST, '-s', 'bitlair/switch/state', '-s', 'bitlair/alarm']
-        subprocess.check_output(cmd)[:-1].decode('utf8')
-        state = get_state()
-        if state != prev_state:
-            return state
+        try:
+            state = get_state()
+            if state != prev_state:
+                return state
+        except Exception as err:
+            print(err)
+            time.sleep(2)
 
 if __name__ == '__main__':
     prev_state = get_state()
