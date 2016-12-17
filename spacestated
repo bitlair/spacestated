@@ -58,6 +58,11 @@ def await_state_change(prev_state):
             print(err)
             time.sleep(2)
 
+def script_hooks(name, active):
+    hook_subdir = path.join(HOOK_DIR, '%s_%s.d' % (name, 'open' if active else 'closed'))
+    return [ path.join(hook_subdir, f) for f in os.listdir(hook_subdir) ]
+
+
 if __name__ == '__main__':
     prev_state = get_state()
     while True:
@@ -66,33 +71,37 @@ if __name__ == '__main__':
         print('state: %s' % ', '.join([ '%s=%s' % (name, 'open' if op else 'closed') for name, op in state.items() ]))
         try:
             scripts = []
-            scripts_inverse = []
 
-            # Build a list of scripts that should be run.
             for name, active in state.items():
+                scripts_past = []
+                scripts_future = []
+                for scissor_name, scissor_active in state.items():
+                    if scissor_active and name != scissor_name:
+                        scripts_past.extend(script_hooks(scissor_name, True))
+                        scripts_future.extend(script_hooks(scissor_name, False))
+                hashes_past   = { hash_file(f): f for f in scripts_past }
+                hashes_future = { hash_file(f): f for f in scripts_future }
+
                 if active != prev_state[name]:
-                    # Add the scripts that should run.
-                    hook_dir = path.join(HOOK_DIR, '%s_%s.d' % (name, 'open' if active else 'closed'))
-                    scripts.extend([ path.join(hook_dir, f) for f in os.listdir(hook_dir) ])
+                    hashes = { hash_file(f): f for f in script_hooks(name, active) }
+                    # If the state transitions to open, the scripts that were
+                    # ran in the past should not run.
+                    # If the state transitions to closed, the scripts that will
+                    # run in the future should not run.
+                    scissor = hashes_past if active else hashes_future
+                    scripts.append((hashes, scissor))
 
-                    # Add the scripts that should run if the state is the
-                    # opposite. This will help us to determine whether we will
-                    # be running scripts in needless succession.
-                    inv_dir = path.join(HOOK_DIR, '%s_%s.d' % (name, 'open' if not active else 'closed'))
-                    scripts_inverse.extend([ path.join(inv_dir, f) for f in os.listdir(inv_dir) ])
-
-            # Alias scripts to their contents though a hash of each of their contents.
-            hashes         = { hash_file(f): f for f in scripts }
-            hashes_inverse = { hash_file(f): f for f in scripts_inverse }
-
-            run = [ hashes[h] for h in set(hashes.keys()) - set(hashes_inverse.keys()) ]
+            run = []
+            for scriptset in scripts:
+                (hashes, scissor) = scriptset
+                run.extend([ hashes[h] for h in set(hashes.keys()) - set(scissor.keys()) ])
             run.sort()
 
             for script in run:
                 try:
                     if os.access(script, os.X_OK):
                         out = subprocess.check_output([ script ])[:-1].decode('utf8')
-                        print(out)
+                        print('-> %s: %s' % (script, out))
                 except Exception as err:
                     print(err)
 
