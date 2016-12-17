@@ -1,3 +1,3 @@
 #!/bin/bash
 
-bitlair-tweet "We are closed."
+bitlair-tweet "We closed at $(date +%s)"
