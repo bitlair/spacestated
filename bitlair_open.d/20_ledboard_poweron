@@ -1,6 +1,0 @@
-#!/bin/bash
-
-apc-switch 23 off
-
-# Switches on the led-board.
-apc-switch 23 on
