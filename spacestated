@@ -5,6 +5,7 @@ import os
 import os.path as path
 import subprocess
 import time
+import syslog
 
 
 MQTT_HOST = 'mqtt.bitlair.nl'
@@ -14,7 +15,7 @@ RUN_DIR   = '/tmp/spacestate'
 
 def mqtt_get(topic, retry=3):
     try:
-        cmd = ['mqtt-simple', '--one', '-h', MQTT_HOST, '-s', topic]
+        cmd = ['/usr/local/bin/mqtt-simple', '--one', '-h', MQTT_HOST, '-s', topic]
         return subprocess.check_output(cmd, timeout=1)[:-1].decode('utf8')
     except subprocess.TimeoutExpired:
         # Sometimes MQTT is derp. Try again just in case the message is retained.
@@ -55,8 +56,8 @@ def await_state_change(prev_state):
             if state != prev_state:
                 return state
         except Exception as err:
-            print(err)
-            time.sleep(2)
+            syslog.syslog(syslog.LOG_ERR, str(err))
+        time.sleep(2)
 
 def script_hooks(name, active):
     hook_subdir = path.join(HOOK_DIR, '%s_%s.d' % (name, 'open' if active else 'closed'))
@@ -64,11 +65,14 @@ def script_hooks(name, active):
 
 
 if __name__ == '__main__':
+    syslog.openlog('spacestated')
+
     prev_state = get_state()
+    syslog.syslog(syslog.LOG_INFO, 'Initial state: %s' % ', '.join([ '%s=%s' % (name, 'open' if op else 'closed') for name, op in prev_state.items() ]))
     while True:
         state = await_state_change(prev_state)
 
-        print('state: %s' % ', '.join([ '%s=%s' % (name, 'open' if op else 'closed') for name, op in state.items() ]))
+        syslog.syslog(syslog.LOG_INFO, 'State: %s' % ', '.join([ '%s=%s' % (name, 'open' if op else 'closed') for name, op in state.items() ]))
         try:
             scripts = []
 
@@ -101,12 +105,12 @@ if __name__ == '__main__':
                 try:
                     if os.access(script, os.X_OK):
                         out = subprocess.check_output([ script ])[:-1].decode('utf8')
-                        print('-> %s: %s' % (script, out))
+                        syslog.syslog(syslog.LOG_INFO, '-> %s: %s' % (script, out))
                 except Exception as err:
-                    print(err)
+                    syslog.syslog(syslog.LOG_ERR, str(err))
 
         except Exception as err:
-            print(err)
+            syslog.syslog(syslog.LOG_ERR, str(err))
             time.sleep(1)
 
         prev_state = state
