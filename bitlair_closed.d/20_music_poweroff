@@ -3,9 +3,6 @@
 ssh -o ConnectTimeout=1 root@music.bitlair.nl /opt/shutdown.sh
 ssh -o ConnectTimeout=1 root@music.bitlair.nl shutdown -h now
 sleep 10
-apc-switch 18 off
-
-# Amplifier and KVM switch
-apc-switch 19 off
+apc-switch 20 off
 
 mqtt-simple -r -h mqtt.bitlair.nl -p 'bitlair/music/space/state' -m 'stopped'

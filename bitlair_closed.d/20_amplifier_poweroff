@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Amplifier and KVM switch
+apc-switch 22 off

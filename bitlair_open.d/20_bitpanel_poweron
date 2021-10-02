@@ -1,9 +1,4 @@
 #!/bin/bash
 
-# Ensure the controller is power cycled.
-powerbar-switch 2 off
-
-# 1 = Board (upper half)
-# 2 = Controller 
-# 3 = Board (lower half)
-powerbar-switch 1-3 on
+# Turn on bitpanel
+apc-switch 18 on

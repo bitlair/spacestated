@@ -1,8 +1,5 @@
 #!/bin/bash
 
-apc-switch 18 off
+apc-switch 20 off
 # Switches on the music computer.
-apc-switch 18 on
-
-# Amplifier and KVM switch
-apc-switch 19 on
+apc-switch 20 on

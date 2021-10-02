@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Turn on the port for the bank leds
+powerbar-switch 3 on

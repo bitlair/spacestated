@@ -1,0 +1,3 @@
+#!/bin/bash
+poe-switch 10 on
+

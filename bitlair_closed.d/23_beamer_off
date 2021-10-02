@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Turn off the port for the Beamer
+powerbar-switch 2 off

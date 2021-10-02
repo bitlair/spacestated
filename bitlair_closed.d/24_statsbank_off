@@ -1,0 +1,6 @@
+#!/bin/bash
+
+ssh -o ConnectTimeout=1 root@statsbak.bitlair.nl shutdown -h now
+sleep 20
+powerbar-switch 19 off
+

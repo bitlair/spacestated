@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Turn on LEDs in the lounge
+apc-switch 17 on

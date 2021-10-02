@@ -1,3 +1,3 @@
 #!/bin/bash
 
-bitlair-tweet "We OPENED at $(date +%s)"
+bitlair-state-tweet "Yes, we're OPEN! Open since: $(date --rfc-3339=seconds)"

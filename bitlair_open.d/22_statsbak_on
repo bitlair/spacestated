@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Turn on statsbak
+powerbar-switch 19 on
