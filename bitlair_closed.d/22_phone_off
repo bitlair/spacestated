@@ -1,2 +1,2 @@
 #!/bin/bash
-poe-switch 10 off
+poe-switch 106 off
