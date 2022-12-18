@@ -1,3 +1,0 @@
-#!/bin/bash
-
-bitlair-state-tweet "No, we're closed. Closed at: $(date --rfc-3339=seconds)"
