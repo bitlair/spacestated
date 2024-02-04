@@ -1,0 +1,3 @@
+#!/bin/bash
+
+apc-switch 19 off
