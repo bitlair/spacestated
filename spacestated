@@ -37,10 +37,10 @@ def alarm_disarmed():
     return mqtt_get('bitlair/alarm').split(' ')[0] == 'disarmed'
 
 def getstate_djo():
-    return mqtt_get('bitlair/switch/state/djo') == 'open' and alarm_disarmed()
+    return mqtt_get('bitlair/switch/state/djo') == 'ON' and alarm_disarmed()
 
 def getstate_bitlair():
-    return mqtt_get('bitlair/switch/state/bitlair') == 'open' and alarm_disarmed()
+    return mqtt_get('bitlair/switch/state/bitlair') == 'ON' and alarm_disarmed()
 
 def get_state():
     return {
