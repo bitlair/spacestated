@@ -1,4 +1,0 @@
-#!/bin/bash
-
-# Turn on ledbanner
-powerbar-switch 20 on

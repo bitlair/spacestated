@@ -1,5 +1,0 @@
-#!/bin/bash
-
-ssh -o ConnectTimeout=1 root@ledbanner.bitlair.nl shutdown -h now
-sleep 10
-powerbar-switch 20 off

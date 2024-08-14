@@ -1,0 +1,3 @@
+#!/bin/bash
+
+mqtt-simple -h mqtt.bitlair.nl -p bitlair/power/shelly/05/command/switch:0 -m on
