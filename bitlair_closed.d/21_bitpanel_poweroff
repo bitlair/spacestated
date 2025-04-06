@@ -3,4 +3,4 @@
 ssh root@bitpanel.bitlair.nl shutdown -h now
 sleep 10
 
-apc-switch 18 off
+mqtt-simple -h mqtt.bitlair.nl -p bitlair/power/shelly/03/command/switch:0 -m off

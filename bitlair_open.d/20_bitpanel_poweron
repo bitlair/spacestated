@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # Turn on bitpanel
-apc-switch 18 on
+mqtt-simple -h mqtt.bitlair.nl -p bitlair/power/shelly/03/command/switch:0 -m on
